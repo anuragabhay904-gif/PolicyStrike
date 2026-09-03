@@ -1,9 +1,15 @@
+# Environment secrets
+.env
+.env.*
+*.env
+backend/.env
+backend/.env.local
+backend/application-local.properties
+application-local.properties
+
 # Node & Frontend
 frontend/node_modules/
 frontend/dist/
-frontend/.env
-frontend/.env.local
-frontend/.env.*.local
 
 # Java & Backend
 backend/target/
