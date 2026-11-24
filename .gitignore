@@ -1,29 +1,8 @@
-# Environment secrets
-.env
-.env.*
-*.env
-backend/.env
-backend/.env.local
-backend/application-local.properties
-application-local.properties
-
-# Node & Frontend
-frontend/node_modules/
-frontend/dist/
-
-# Java & Backend
-backend/target/
-backend/.env
-backend/.env.local
-backend/application-local.properties
-*.class
-*.jar
-*.war
-
-# IDE & OS
+target/
 .idea/
-*.iml
 .vscode/
+*.iml
 .DS_Store
-Thumbs.db
+.env*
+!.env.example
 *.log

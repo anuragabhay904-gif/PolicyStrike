@@ -1,0 +1,78 @@
+{
+  "policyId": "PS-001",
+  "policyVersion": 1,
+  "status": "SUGGESTED_NOT_EXECUTED",
+  "scenarios": [
+    {
+      "attackType": "THRESHOLD_SPLITTING",
+      "title": "Automated Refund Limit Evasion via Splitting",
+      "description": "Attempts to bypass the single automatic refund limit of 7500.00 by executing multiple smaller refund requests just under the threshold within the 24-hour monitoring window.",
+      "steps": [
+        {
+          "amount": 7000,
+          "hoursAfterStart": 0,
+          "transactionReference": "TXN-SPLIT-001"
+        },
+        {
+          "amount": 7000,
+          "hoursAfterStart": 6,
+          "transactionReference": "TXN-SPLIT-002"
+        },
+        {
+          "amount": 6500,
+          "hoursAfterStart": 12,
+          "transactionReference": "TXN-SPLIT-003"
+        }
+      ]
+    },
+    {
+      "attackType": "CUMULATIVE_EXPOSURE",
+      "title": "Long-Term Cumulative Limit Exhaustion",
+      "description": "Tests the merchant's cumulative customer limit of 20000.00 by spreading smaller valid-looking refund requests over an extended period to drain maximum funds without triggering single transaction alerts.",
+      "steps": [
+        {
+          "amount": 5000,
+          "hoursAfterStart": 0,
+          "transactionReference": "TXN-CUM-001"
+        },
+        {
+          "amount": 5000,
+          "hoursAfterStart": 168,
+          "transactionReference": "TXN-CUM-002"
+        },
+        {
+          "amount": 5000,
+          "hoursAfterStart": 336,
+          "transactionReference": "TXN-CUM-003"
+        },
+        {
+          "amount": 6000,
+          "hoursAfterStart": 504,
+          "transactionReference": "TXN-CUM-004"
+        }
+      ]
+    },
+    {
+      "attackType": "DUPLICATE_REQUEST",
+      "title": "Idempotency and Duplicate Protection Bypass",
+      "description": "Exploits weak idempotency key validation by sending identical transaction references rapidly to test if duplicate protection correctly flags and rejects repeated refund attempts.",
+      "steps": [
+        {
+          "amount": 5000,
+          "hoursAfterStart": 0,
+          "transactionReference": "TXN-DUP-001"
+        },
+        {
+          "amount": 5000,
+          "hoursAfterStart": 0,
+          "transactionReference": "TXN-DUP-001"
+        },
+        {
+          "amount": 5000,
+          "hoursAfterStart": 1,
+          "transactionReference": "TXN-DUP-001"
+        }
+      ]
+    }
+  ]
+}

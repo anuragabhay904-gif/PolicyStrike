@@ -1,252 +1,240 @@
-# RefundShield — Revenue Leak Recovery Agent
+# PolicyStrike — Financial Policy Red-Team Engine
 
-> An AI-powered, autonomous financial revenue leak detection and recovery platform for merchants. Built as a high-velocity, 1-day hackathon MVP.
+> Attack your financial policies before fraudsters do.
 
----
+PolicyStrike is a Java/Spring Boot application for testing refund policies against synthetic abuse patterns before a policy is activated. It combines Gemini-assisted policy interpretation and adversarial scenario generation with a deterministic Java refund evaluator. Policy versions, simulation runs, and individual refund decisions are persisted in PostgreSQL.
 
-## 📌 Problem Statement
+**Core principle: AI proposes. Rules decide.** Gemini does not approve or reject refunds. Financial decisions are made by the Java policy evaluator.
 
-Merchants lose substantial recoverable revenue every day due to:
-1. **Failed Payment Transactions**: Payment gateway timeouts, bank authentication drops, or network glitches where a customer had high purchase intent.
-2. **High-Value Abandoned Checkouts**: Large shopping baskets abandoned right before or during authorization.
-3. **Dormant Repeat Customers**: High-LTV repeat buyers who suddenly stop re-ordering past their typical purchase cycle.
+## What it does
 
-Most merchants lack automated systems to intercept these leaks in real time, analyze the root cause, and re-engage customers with verified recovery payment links before the revenue is permanently lost.
+1. **Compile a natural-language policy.** Gemini extracts structured limits and controls from a merchant's refund-policy text. The result is a proposal, not an active policy.
+2. **Generate adversarial scenarios.** Gemini proposes sequences for threshold splitting, cumulative exposure, and duplicate refund requests.
+3. **Validate and execute scenarios.** The application validates generated scenarios and sends their refund steps through the deterministic Java evaluator.
+4. **Measure simulation outcomes.** A policy-calibrated synthetic benchmark evaluates 100 customer profiles and 1,000 refund requests, reporting approvals, manual reviews, blocks, approved exposure, false positives, missed attacks, and per-attack detection counts.
+5. **Version and approve policies.** New versions start as `PENDING_APPROVAL`. A reviewer can compare a saved candidate with a saved baseline, then approve or reject it. Approving a candidate activates it and marks the previous active version `SUPERSEDED`.
+6. **Persist audit history.** Simulation runs and individual refund decisions are stored in PostgreSQL and can be retrieved through paginated API endpoints.
+7. **Explain replay findings.** Gemini can explain deterministic replay results. Its explanation is advisory; replay output remains the source of truth.
 
----
+## Technology stack
 
-## 💡 Solution
+- Java 21 language target
+- Spring Boot 4.2.0, Spring Web MVC
+- Spring Data JPA / Hibernate
+- PostgreSQL
+- Google GenAI Java SDK
+- JUnit 5, Mockito, Maven
+- Springdoc OpenAPI / Swagger UI
 
-**RefundShield** couples **deterministic financial rule engines** with **autonomous Gemini AI reasoning**:
-- **Deterministic Backend Engine**: Identifies revenue leaks, calculates a normalized **Recovery Score (0–100)**, validates amounts, enforces state machines, and interfaces with the **Razorpay API**.
-- **Autonomous AI Layer**: Synthesizes customer purchase history and checkout drop-off patterns to generate human-readable explanations, operational recommendations, and personalized customer outreach copy.
-- **Merchant-in-the-Loop Approval**: The LLM *never* independently authorizes charges or alters amounts. The merchant reviews the opportunity, inspects the reasoning, and explicitly approves the action.
-- **Instant Razorpay Payment Links**: Upon approval, generates a secure Razorpay Test Mode payment link and records every step in an **immutable audit trail**.
+## Architecture
 
----
-
-## 🏗 Architecture & Core Principles
-
-```
-   ┌────────────────────────────────────────────────────────┐
-   │                    Merchant Dashboard                  │
-   │               (React + Vite + Tailwind CSS)            │
-   └───────────────────────────┬────────────────────────────┘
-                               │ REST APIs (/api/*)
-                               ▼
-   ┌────────────────────────────────────────────────────────┐
-   │                 Spring Boot 3 Monolith                 │
-   │                                                        │
-   │  ┌───────────────────────┐  ┌───────────────────────┐  │
-   │  │ Revenue Leak Detector │  │ Recovery Score Engine │  │
-   │  │  - Failed Payments    │  │  - Recency Weight     │  │
-   │  │  - Abandoned Carts    │  │  - Spend / Frequency  │  │
-   │  │  - Inactive Buyers    │  │  - Failure Multiplier │  │
-   │  └───────────┬───────────┘  └───────────┬───────────┘  │
-   │              │                          │              │
-   │              ▼                          ▼              │
-   │  ┌──────────────────────────────────────────────────┐  │
-   │  │          Opportunity & Validation Engine         │  │
-   │  └───────────────┬───────────────────┬──────────────┘  │
-   │                  │                   │                 │
-   └──────────────────┼───────────────────┼─────────────────┘
-                      │                   │
-                      ▼                   ▼
-          ┌───────────────────────┐   ┌────────────────────────┐
-          │     Google Gemini     │   │     Razorpay API       │
-          │   Contextual Analysis │   │   (Test Mode Links     │
-          │  & Outreach Messaging │   │   or Realistic Demo)   │
-          └───────────────────────┘   └────────────────────────┘
+```text
+Swagger UI / REST clients
+          |
+          v
+     API controllers
+          |
+          v
+      Service layer -------------------- Gemini Gateway
+          |                                    |
+          v                                    v
+  Deterministic Java engine          Policy interpretation,
+          |                           scenario suggestions,
+          |                           vulnerability explanations
+          v                                    |
+  Simulation + replay <------------------------+
+          |
+          v
+  PostgreSQL persistence
+  - policy versions
+  - simulation runs
+  - attack results
+  - refund audit records
 ```
 
-### Core Architecture Rules
-1. **Deterministic Authority**: Financial logic, detection rules, recovery scoring, eligibility checks, and deduplication are strictly governed by Java Spring Boot backend services.
-2. **AI Guardrails**: Gemini is restricted via structured JSON schemas and strict prompting. It cannot modify amounts, charge cards, or hallucinate records.
-3. **Graceful Fallback**: If external APIs (Gemini or Razorpay) are unreachable or unconfigured, the application gracefully degrades to deterministic fallbacks and simulated demo links.
-4. **Auditability**: Every detection, AI inference, merchant approval, link creation, and gateway failure writes directly to an immutable audit event stream.
+Gemini returns structured proposals and explanations. Java validates policy inputs, evaluates refund requests, computes exposure, and produces the final decision. Model output is never executable policy code.
 
----
+## Requirements
 
-## 🛠 Tech Stack
+- JDK 21 or later (the project compiles with `--release 21`)
+- Maven 3.9+
+- Docker Desktop or a local PostgreSQL 17 instance
+- A Google AI Studio API key for Gemini-backed endpoints
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React 18, Vite 5, JavaScript, Tailwind CSS, Lucide Icons, Recharts, Axios |
-| **Backend** | Java 21/24, Spring Boot 3.3.5, Spring Web, Spring Data JPA, Hibernate, Jackson |
-| **Database** | H2 (Local In-Memory / Zero Setup) & PostgreSQL Dialect (Production-ready) |
-| **AI** | Google Gemini API (`gemini-2.0-flash`) |
-| **Payment Gateway** | Razorpay Test Mode API (`/v1/payment_links`) with DEMO simulator mode |
+## Local setup
 
----
+### 1. Configure PostgreSQL
 
-## 📂 Project Structure
+For a local Docker database:
 
-```
-.
-├── backend/
-│   ├── src/main/java/com/refundshield/recoveryagent/
-│   │   ├── config/             # Web CORS, RestTemplate configuration
-│   │   ├── controller/         # REST Controllers (Dashboard, Opportunities, Audit, Demo)
-│   │   ├── dto/                # Request/Response payloads (OpportunityDTO, AiAnalysisDTO, etc.)
-│   │   ├── entity/             # JPA Entities (Customer, Transaction, Opportunity, RecoveryAction, AuditEvent)
-│   │   ├── exception/          # GlobalExceptionHandler and custom exceptions
-│   │   ├── repository/         # Spring Data JPA Repositories
-│   │   ├── service/            # Leak detection, scoring calculator, Gemini, Razorpay, Audit services
-│   │   └── RevenueLeakRecoveryAgentApplication.java
-│   ├── src/main/resources/
-│   │   ├── application.properties        # Default H2 zero-setup config
-│   │   └── application-prod.properties   # Production PostgreSQL config
-│   ├── pom.xml
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── components/         # Navbar, Sidebar, Toast notification system
-│   │   ├── pages/              # Dashboard, Opportunities, Opportunity Details, Ledger, Audit
-│   │   ├── services/           # Axios API client
-│   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── index.css
-│   ├── package.json
-│   ├── tailwind.config.js
-│   └── vite.config.js
-├── README.md
-└── .gitignore
-```
-
----
-
-## ⚙️ Environment Configuration
-
-### Backend (`backend/.env` or system environment variables)
-Copy `backend/.env.example` to `backend/.env`:
-
-```env
-# Payment Gateway (DEMO or RAZORPAY)
-PAYMENT_MODE=DEMO
-
-# Razorpay Test Credentials (Optional if PAYMENT_MODE=DEMO)
-RAZORPAY_KEY_ID=rzp_test_YourKeyId
-RAZORPAY_KEY_SECRET=YourKeySecret
-
-# Google Gemini API Key (Optional: deterministic fallback used if absent)
-GEMINI_API_KEY=AIzaSyYourGeminiApiKey
-GEMINI_MODEL=gemini-2.0-flash
-
-# Port Configuration
-SERVER_PORT=8080
-```
-
----
-
-## 🚀 Running the Project
-
-### Prerequisites
-- **Java 17, 21, or 24**
-- **Maven 3.8+**
-- **Node.js 18+ & npm**
-
-### 1. Run Backend
 ```bash
-cd backend
-mvn clean compile
-mvn test                   # Runs comprehensive unit and integration test suite
-mvn spring-boot:run        # Starts backend on http://localhost:8080
+docker run --name policystrike-db -e POSTGRES_DB=policystrike -e POSTGRES_USER=policystrike -e POSTGRES_PASSWORD=policystrike -p 5432:5432 -d postgres:17
 ```
-> *On startup, the backend automatically seeds 10 customers, 26 transactions, and initializes the first batch of detected revenue leaks.*
 
-### 2. Run Frontend
+For subsequent runs:
+
 ```bash
-cd frontend
-npm install
-npm run dev                # Starts Vite dev server on http://localhost:5173
+docker start policystrike-db
 ```
-Open **[http://localhost:5173](http://localhost:5173)** in your browser.
 
----
+The password above is a local-development example. Override it outside a disposable local environment.
 
-## 🎬 2-Minute Hackathon Demo Script
+### 2. Configure environment variables
 
-Follow this step-by-step walkthrough to present the MVP to judges:
+Set these in the same terminal that starts Spring Boot:
 
-1. **Open the Dashboard**:
-   - Point out the **₹1,09,690.00** total revenue captured vs **₹41,700.24** potential recoverable revenue.
-   - Show the visual comparison chart between captured settlements and intercepted leaks.
+```bash
+export DB_URL="jdbc:postgresql://localhost:5432/policystrike"
+export DB_USERNAME="policystrike"
+export DB_PASSWORD="your-local-db-password"
+export GOOGLE_API_KEY="your-google-ai-studio-key"
+export GEMINI_MODEL="gemini-3.5-flash-lite"
+```
 
-2. **Simulate a Fresh Revenue Leak**:
-   - Click the **"Simulate Revenue Leak"** button in the top navbar.
-   - A live transaction failure is generated (e.g. ₹5,499.00).
-   - The system automatically identifies the leak and routes you to the **Opportunity Detail Page**.
+`GEMINI_MODEL` defaults to `gemini-3.5-flash-lite` in the current configuration. The model was tested successfully with the project's Google AI API key during development. Model availability and quotas are controlled by Google and can change.
 
-3. **Inspect Deterministic Scoring**:
-   - Point out the **Recovery Score (e.g. 86/100 or 100/100)** computed deterministically based on buyer purchase history, transaction channel, and basket value.
+Do not commit API keys, passwords, `.env` files, or other credentials. Never paste secrets into issue reports or source control.
 
-4. **Generate AI Analysis**:
-   - Click **"Generate AI Analysis"**.
-   - Gemini evaluates the drop-off pattern and produces:
-     - **Why This Revenue is at Risk**
-     - **Recommended Operational Action**
-     - **Personalized Customer Outreach Copy** (with 1-click clipboard copy).
+### 3. Build and test
 
-5. **Merchant Approval & Razorpay Test Payment Link**:
-   - Click **"Approve Recovery"**.
-   - The backend validates the opportunity state, creates a `RecoveryAction`, and generates a verified Razorpay Test Mode link (e.g. `https://rzp.io/i/...`).
-   - Click **"Test Link"** to preview the payment link.
+From the repository root:
 
-6. **Verify the Audit Trail**:
-   - Navigate to the **Audit Trail** tab to show immutable timestamps and actor badges (`SYSTEM`, `AI_AGENT`, `MERCHANT`).
+```bash
+mvn clean test
+```
 
-7. **Test Failure Scenario (Controlled Resilience Demo)**:
-   - In the top navbar, toggle **"Failure Simulation: ON"**.
-   - Attempt to approve another recovery opportunity.
-   - The system intercepts the 503 gateway failure, flags the opportunity as `FAILED`, presents a clear error toast without crashing, and logs the failure to the audit trail.
-   - Toggle it back to **"OFF"** to restore normal operation.
+The verified test run on November 24, 2026 completed with **29 tests, 0 failures, 0 errors, and 0 skipped**.
 
----
+### 4. Start the application
 
-## 📡 REST API Reference
+```bash
+mvn spring-boot:run
+```
 
-| Method | Endpoint | Description |
+The application listens on port `8080` by default.
+
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- OpenAPI JSON: http://localhost:8080/v3/api-docs
+- Health endpoint: http://localhost:8080/api/v1/system/health
+
+On startup, the application initializes the default `PS-001` policy only when that policy does not already exist. The default initial policy is version 1 with a ₹7,500 individual automatic-refund limit, ₹20,000 customer cumulative limit, 24-hour threshold window, 30-day cumulative window, and duplicate protection enabled.
+
+## API overview
+
+All endpoints are rooted at `/api/v1`.
+
+| Capability | Method and endpoint | Purpose |
 |---|---|---|
-| `GET` | `/api/health` | Service health, active payment mode, and AI model |
-| `GET` | `/api/dashboard` | Aggregated KPIs, pipeline breakdown, recent activities |
-| `GET` | `/api/opportunities` | List opportunities (optional `?status=NEW`) |
-| `GET` | `/api/opportunities/{id}` | Single opportunity details with customer & transaction context |
-| `POST` | `/api/opportunities/{id}/analyze` | Trigger Gemini AI reasoning & outreach generation |
-| `POST` | `/api/opportunities/{id}/approve` | Validate approval, call Razorpay, create payment link |
-| `POST` | `/api/opportunities/{id}/dismiss` | Dismiss an opportunity |
-| `GET` | `/api/audit` | View full audit trail (optional `?opportunityId=...`) |
-| `GET` | `/api/transactions` | Merchant transaction ledger (optional `?status=...`) |
-| `GET` | `/api/customers` | Merchant customer list |
-| `POST` | `/api/demo/seed` | Reset & seed 10 customers and 26 transactions |
-| `POST` | `/api/demo/simulate-leak` | Generate a new simulated failed transaction & opportunity |
-| `POST` | `/api/demo/simulate-failure` | Toggle controlled gateway failure mode (`?enabled=true/false`) |
+| Health | `GET /system/health` | Application health check |
+| Compile policy | `POST /ai/policies/compile` | Convert natural-language policy text into a structured proposal |
+| Generate attacks | `POST /ai/policies/{policyId}/scenarios/generate` | Generate adversarial scenarios for the active policy |
+| Execute generated attacks | `POST /ai/policies/{policyId}/scenarios/execute` | Validate and evaluate a generated scenario response using Java rules; persist results |
+| Explain vulnerabilities | `POST /ai/vulnerabilities/explain` | Generate an explanation of deterministic replay results |
+| List policy versions | `GET /policies/{policyId}/versions` | Retrieve policy version history and lifecycle metadata |
+| Create policy version | `POST /policies/{policyId}/versions` | Create a new `PENDING_APPROVAL` proposal |
+| Approve version | `POST /policies/{policyId}/versions/{version}/approve` | Activate a pending version and supersede the previous active version |
+| Reject version | `POST /policies/{policyId}/versions/{version}/reject` | Reject a pending version with a reason |
+| Replay latest pair | `POST /replays/run?policyId=PS-001` | Compare the two newest non-rejected saved versions |
+| Replay explicit pair | `POST /replays/{policyId}/run?baselineVersion=1&candidateVersion=2` | Compare specified saved versions |
+| Run benchmark | `POST /simulations/run?policyId=PS-001` | Run the 100-customer / 1,000-request synthetic benchmark against the active version |
+| List runs | `GET /simulations` | List saved simulation runs |
+| Get run | `GET /simulations/{runId}` | Retrieve a saved run |
+| Get audits | `GET /simulations/{runId}/audits?page=0&size=20` | Retrieve paginated refund audit records |
 
----
+For exact request and response schemas, use Swagger UI. The scenario-execution endpoint accepts the complete JSON response from the scenario-generation endpoint; do not substitute Swagger's placeholder example values.
 
-## 🚢 Production Deployment
+## Policy lifecycle
 
-### Frontend (Vercel)
-1. Push repository to GitHub.
-2. Import root repo into Vercel. Set **Root Directory** to `frontend`.
-3. Set Environment Variable: `VITE_API_URL=https://your-backend.railway.app`
-4. Deploy.
+```text
+Create proposal
+      |
+      v
+PENDING_APPROVAL
+      |
+      +----> Replay saved baseline vs candidate
+      |
+      +----> Approve -----------------> ACTIVE
+      |                                  |
+      |                                  +--> previous active version: SUPERSEDED
+      |
+      +----> Reject ------------------> REJECTED
+                                         previous active version remains active
+```
 
-### Backend (Railway / Render / Docker)
-1. In Railway or Render, create a new Web Service pointing to `backend`.
-2. Set Environment Variables:
-   - `PAYMENT_MODE=RAZORPAY`
-   - `RAZORPAY_KEY_ID=...`
-   - `RAZORPAY_KEY_SECRET=...`
-   - `GEMINI_API_KEY=...`
-   - `SPRING_PROFILES_ACTIVE=prod`
-   - `DATABASE_URL=jdbc:postgresql://...`
-   - `DATABASE_USERNAME=...`
-   - `DATABASE_PASSWORD=...`
-3. Deploy.
+Normal simulations, scenario generation, and generated-scenario execution load the active policy version. A pending proposal does not affect live evaluation. Replay can load a pending candidate explicitly for comparison.
 
----
+The current reviewer fields (`approvedBy` and `rejectedBy`) are request-supplied audit labels. They are not authenticated identities.
 
-## 🔒 Security & Safe Harbor
-- Razorpay API secrets and Gemini keys are injected strictly via environment variables.
-- All approval amounts are validated on the backend and cannot be tampered with from the client.
-- The AI has no permission to initiate fund movement or sign financial orders.
+## Attack patterns
+
+- **Threshold splitting:** Multiple individually compliant requests are submitted within the configured monitoring window, with their combined value crossing the threshold control.
+- **Cumulative exposure:** Requests are spaced so the threshold-splitting rule does not trigger, but their aggregate value crosses the customer's cumulative limit.
+- **Duplicate request:** The same original transaction reference is submitted more than once; duplicate protection should block repeats.
+
+The generated-scenario execution endpoint isolates each scenario's synthetic customer state, preserves transaction references, orders steps chronologically, and runs each step through the same deterministic evaluator used by the benchmark.
+
+## Verified demonstration snapshot
+
+The following is the local synthetic benchmark result observed with `PS-001` version 2 active on November 24, 2026:
+
+| Metric | Observed result |
+|---|---:|
+| Customer profiles | 100 |
+| Refund requests | 1,000 |
+| Automatically approved | 970 |
+| Manual review | 0 |
+| Blocked | 30 |
+| Approved exposure | INR 286,600 |
+| False-positive blocks | 0 |
+| Missed attacks | 0 |
+| Threshold-splitting detections | 10 / 10 |
+| Cumulative-exposure detections | 10 / 10 |
+| Duplicate-request detections | 10 / 10 |
+
+These figures describe the deterministic synthetic benchmark, not real-world production traffic or fraud-detection accuracy. The benchmark dataset is calibrated to the policy under test so benign requests remain within its configured limits and injected requests exercise the intended control.
+
+## Tests
+
+The verified Maven test suite contains six test classes:
+
+- `RefundPolicyEvaluatorTest`
+- `PolicyStrikeSimulatorTest`
+- `SimulationExecutionTest`
+- `PolicyVersionReplayServiceTest`
+- `PolicyVersionServiceTest`
+- `GeneratedScenarioExecutionServiceTest`
+
+Run all tests with `mvn clean test`.
+
+## Known limitations and production hardening
+
+This project is an interview/portfolio MVP, not a production financial decisioning service.
+
+- **Authentication and authorization:** API endpoints are not protected by a full authentication/authorization layer. Reviewer identity is supplied in the request body. Add Spring Security, authenticated principals, reviewer roles, and authorization checks before deployment.
+- **Database migrations:** Hibernate currently uses `spring.jpa.hibernate.ddl-auto=update` for local development. Use versioned database migrations (for example, Flyway) and controlled schema rollout for production.
+- **Database credentials:** `application.properties` has local fallback values. Set strong secrets through environment variables or a secret manager in deployed environments; remove development fallbacks from production configuration.
+- **Gemini availability:** Gemini requests can fail due to transient model capacity, network, permission, or quota issues. Add/verify bounded retries, timeouts, structured upstream error mapping, and operational logging before relying on AI endpoints in production.
+- **Human review:** The approval flow demonstrates policy governance but does not provide authenticated separation of duties or a signed approval record.
+- **Synthetic benchmark:** Zero false positives and zero missed attacks are results for the included deterministic test dataset only. They do not establish real-world accuracy.
+- **Operational controls:** Add rate limiting, request-size limits, observability, backup/restore procedures, and deployment-specific security controls before exposing the API publicly.
+
+## Repository hygiene
+
+The repository `.gitignore` should exclude at least:
+
+```gitignore
+target/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+.env*
+!.env.example
+*.log
+```
+
+Ignoring a file does not remove it from Git history if it was committed earlier. Before publishing the repository, inspect tracked files and history for secrets. If a real credential was ever committed, rotate it; removing the file from the latest commit alone is not sufficient.
+
+## License
+
+Add a license file before distributing this project publicly. No license is declared by this README.
